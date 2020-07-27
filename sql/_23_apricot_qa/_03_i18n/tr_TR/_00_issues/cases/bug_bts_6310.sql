@@ -1,3 +1,4 @@
+drop table if exists t;
 create class t(
     col1     varchar(40),
     col2        char(40),
@@ -11,6 +12,10 @@ ALTER table t change col1 Çç_Ğğ DATETIME;
 --test
 ALTER table t change col2 İı_Öö Timestamp;
 --test
+ALTER table t change col3 Şş_Üü Time;
+select * from t order by 1;
+--test
+UPDATE t set col3='10:11:12 pm' where col3='10:11:12 teIt pm';
 ALTER table t change col3 Şş_Üü Time;
 --test
 ALTER table t modify col4  DATE;
