@@ -1,6 +1,12 @@
+-- @issue: CBRD-26266
+-- @description: verifies order-by-skip applies when a function-based index follows an equality predicate in a multi-column index
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/cbrd_26266
+
 /**
  *  This test case verifies CBRD-26266: Support for order by skip optimization when using function-based indexes in multi-column indexes.
- *  Fixes the issue where order by skip was not applied when the first index column had an equality condition 
+ *  Fixes the issue where order by skip was not applied when the first index column had an equality condition
  *  and the second column was a function index in the ORDER BY clause.
  */
 

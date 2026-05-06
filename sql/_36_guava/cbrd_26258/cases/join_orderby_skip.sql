@@ -1,3 +1,10 @@
+-- @issue: CBRD-26258
+-- @description: verifies skip-order-by applies to partitioned hash-list joins without index scan predicates
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/cbrd_26258
+-- @answer_variants: cci
+
 -- Verification for CBRD-26258 : Improve to allow Skip ORDER BY even for joins without index scan predicates
 
 drop table if exists tbl_a, tbl_b;

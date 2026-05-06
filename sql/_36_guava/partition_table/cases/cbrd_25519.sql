@@ -1,3 +1,9 @@
+-- @issue: CBRD-25519
+-- @description: verifies SQL Trace exposes partition-pruning information across range, hash, and list partitions
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/partition_table
+
 /**
  *  This test case verifies CBRD-25519 : Add partition pruning information to SQL Trace
  *  1. agl

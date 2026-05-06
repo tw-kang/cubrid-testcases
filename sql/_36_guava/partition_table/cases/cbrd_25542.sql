@@ -1,3 +1,9 @@
+-- @issue: CBRD-25542
+-- @description: verifies partition pruning works correctly with multi-column indexes combining IN and range predicates
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/partition_table
+
 /**
  *  This test case verifies CBRD-25542 : Problem with Partition Pruning When Using Multi-Column Indexes with IN and Range Predicates
  */

@@ -1,3 +1,10 @@
+-- @issue: CBRD-25447,CBRD-25997,CBRD-26011,CBRD-26012,CBRD-26035,CBRD-26100,CBRD-26095,CBRD-26114
+-- @description: verifies parallel heap scan correctness across the related CBRD-25447 fix bundle
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/cbrd_25447
+-- @answer_variants: cci
+
 /**
  *  This test case verifies CBRD-25447 : Support parallel heap scan
  *  In this tc, we check together CBRD-25997, 26011, 26012, 26035, 26100, 26095, 26114.

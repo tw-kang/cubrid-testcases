@@ -1,3 +1,9 @@
+-- @issue: CBRD-26104,CBRD-26200,CBRD-26206,CBRD-26178
+-- @description: verifies uncorrelated inline-view subqueries execute in parallel and NO_PARALLEL_SUBQUERY hint disables it
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/cbrd_26104
+
 -- Verification for CBRD-26104, CBRD-26200, CBRD-26206, CBRD-26178
 -- Check if uncorrelated subqueries(inline view) are executed in parallel.
 -- Check if queries are executed in the usual way when parallel execution is not possible.

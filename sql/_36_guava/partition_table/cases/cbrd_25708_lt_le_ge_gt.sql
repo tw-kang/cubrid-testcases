@@ -1,3 +1,9 @@
+-- @issue: CBRD-25708
+-- @description: verifies partition pruning for function-expression partition keys with comparison operators (<, <=, >, >=)
+-- @expected: normal
+-- @type: feature
+-- @category: _36_guava/partition_table
+
 /**
  *  This test case verifies CBRD-25708 : Enable partition pruning when the partition key is a function expression and the WHERE clause uses the original column
  *  This test specifically covers the cases of comparison operators: <, <=, >, >=
