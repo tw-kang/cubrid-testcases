@@ -1,0 +1,68 @@
+name: SQL Metadata Header Lint
+
+on:
+  pull_request:
+    paths:
+      - "**.sql"
+      - "tool/lint_sql_metadata.py"
+      - "tool/tests/**"
+      - ".github/workflows/sql-metadata-lint.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base ref
+        run: |
+          git fetch --no-tags --prune origin \
+            "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run lint self-tests
+        run: python3 -m unittest tool.tests.test_lint_sql_metadata -v
+
+      - name: Collect changed .sql files (diff against base)
+        id: diff
+        run: |
+          set -euo pipefail
+          BASE="origin/${{ github.base_ref }}"
+          mapfile -t FILES < <(git diff --name-only --diff-filter=AM "$BASE...HEAD" -- '**.sql' | sed '/^$/d')
+          printf '%s\n' "${FILES[@]:-}" > .changed_sql.txt
+          echo "count=${#FILES[@]}" >> "$GITHUB_OUTPUT"
+          echo "Changed .sql count: ${#FILES[@]}"
+          if [ "${#FILES[@]}" -gt 0 ]; then
+            printf '  - %s\n' "${FILES[@]}"
+          fi
+
+      - name: Run metadata lint on changed .sql
+        if: steps.diff.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < .changed_sql.txt
+          python3 tool/lint_sql_metadata.py --github-output "${FILES[@]}"
+
+      - name: Sanity check (PR mentions .sql but diff is empty)
+        if: steps.diff.outputs.count == '0'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if printf '%s\n%s' "$PR_TITLE" "$PR_BODY" | grep -qiE '\.sql\b'; then
+            echo "::warning::PR title or body mentions .sql but no .sql changes were detected against ${{ github.base_ref }}. Verify the diff base is correct."
+          else
+            echo "No .sql changes detected; nothing to lint."
+          fi
