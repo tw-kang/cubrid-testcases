@@ -34,9 +34,8 @@ see [`../sql/AGENTS.md`](../sql/AGENTS.md). For lint usage, see
 - Tests here usually assume a pre-loaded backup; the runner restores the
   fixture before each run. Do not include schema/data setup at the top of
   the case unless the scenario explicitly needs to override the backup.
-- Because the data volume is large, `@expected: mixed` is more common than
-  in `sql/` — partial-error scenarios often coexist with success paths in
-  the same case.
+- Because the data volume is large, `@expected: mixed` may be appropriate
+  when partial-error and success paths coexist in the same case.
 
 ## Adoption policy
 

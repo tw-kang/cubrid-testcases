@@ -23,9 +23,12 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base ref
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          set -euo pipefail
           git fetch --no-tags --prune origin \
-            "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,11 +40,17 @@ jobs:
 
       - name: Collect changed .sql files (diff against base)
         id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          BASE="origin/${{ github.base_ref }}"
-          mapfile -t FILES < <(git diff --name-only --diff-filter=AM "$BASE...HEAD" -- '**.sql' | sed '/^$/d')
-          printf '%s\n' "${FILES[@]:-}" > .changed_sql.txt
+          BASE="origin/${BASE_REF}"
+          mapfile -t FILES < <(git diff --name-only --diff-filter=AM "${BASE}...HEAD" -- '**.sql' | sed '/^$/d')
+          if [ "${#FILES[@]}" -gt 0 ]; then
+            printf '%s\n' "${FILES[@]}" > .changed_sql.txt
+          else
+            : > .changed_sql.txt
+          fi
           echo "count=${#FILES[@]}" >> "$GITHUB_OUTPUT"
           echo "Changed .sql count: ${#FILES[@]}"
           if [ "${#FILES[@]}" -gt 0 ]; then
@@ -60,9 +69,11 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
+          set -euo pipefail
           if printf '%s\n%s' "$PR_TITLE" "$PR_BODY" | grep -qiE '\.sql\b'; then
-            echo "::warning::PR title or body mentions .sql but no .sql changes were detected against ${{ github.base_ref }}. Verify the diff base is correct."
+            echo "::warning::PR title or body mentions .sql but no .sql changes were detected against ${BASE_REF}. Verify the diff base is correct."
           else
             echo "No .sql changes detected; nothing to lint."
           fi

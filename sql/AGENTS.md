@@ -77,14 +77,16 @@ The `@type` enum mirrors the runner-side category buckets:
 
 | Code         | Rule                                                                  |
 |--------------|-----------------------------------------------------------------------|
-| SQL-META001  | Required keys must all be present.                                    |
+| SQL-META001  | Header present at file line 1 and required keys (`@issue`, `@description`, `@expected`) all set. |
 | SQL-META002  | `@expected` / `@type` values must be in the declared enum.            |
 | SQL-META003  | `@issue` must match the format above.                                 |
 | SQL-META004  | Lines in the block must match the exact `-- @key: value` grammar (no extra whitespace, no duplicate keys). |
 | SQL-META005  | Block starts at file line 1 (or right after BOM-stripped start) and ends at the first blank line. It must precede `--+` directives. |
-| SQL-META006  | `@answer_variants` files must exist on disk.                          |
+| SQL-META006  | `@answer_variants` tokens must match `[A-Za-z0-9_]+` and reference an existing answer file. |
 | SQL-META007  | UTF-8 BOM at file start is rejected.                                  |
 | SQL-META008  | Values are single-line — no continuation lines inside the block.      |
+| SQL-META009  | File-system guard: symlinks, non-regular files, and files > 1 MiB are rejected. |
+| SQL-META010  | File must contain content (rejects empty and BOM-only files). |
 | SQL-META101  | Unknown `@key` warns (error under `--strict`).                        |
 | SQL-META102  | `@description` shorter than 20 chars warns (error under `--strict`).  |
 
@@ -126,7 +128,7 @@ Read together they should form a natural sentence:
 |--------------------------------------|-----------------------------------------|
 | ~~`create table with varchar data type`~~ | "what is verified" is empty        |
 | ~~`select test`~~                          | < 20 chars → SQL-META102 warning   |
-| ~~`test for varchar`~~                     | vague & generic                    |
+| ~~`test for varchar feature behavior`~~     | vague & generic (the < 20-char trigger is a separate signal — see SQL-META102) |
 | ~~`bug fix`~~                              | zero scenario detail               |
 
 ### 3.5 Migration heuristics
@@ -139,8 +141,9 @@ When absorbing the existing first-line comment(s) into `@description`:
    concat-and-trim.
 4. If < 20 chars or no recommended verb, insert a `[REVIEW]` marker and have
    a human revisit.
-5. Optional: `~/skills/jira` to cross-check description against the JIRA
-   ticket body (`CBRD-NNNNN`).
+5. Optional (planned helper): `tool/migrate_sql_metadata.py --jira-verify`
+   will use `~/skills/jira` to cross-check `@description` against the JIRA
+   ticket body (`CBRD-NNNNN`). Until then, run the skill manually.
 
 ## 4. Query- and block-level labels (informational, not enforced)
 
@@ -216,7 +219,7 @@ python3 tool/lint_sql_metadata.py sql/_36_guava
 # Strict (warnings → errors)
 python3 tool/lint_sql_metadata.py --strict sql/_36_guava
 
-# Mirror the CI behaviour
+# Mirror the CI behaviour (mutually exclusive with positional paths above)
 python3 tool/lint_sql_metadata.py --migrated-since origin/develop
 ```
 

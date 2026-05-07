@@ -62,6 +62,7 @@ diagnostic codes.
 
 ## Out of scope
 
+- **`sql/_13_issues/_24_1h/cases/cbrd_25054.sql` migration + `_26_1h/cases/cbrd_26999_metadata_sample.sql` sample** were deferred from this branch. The `_36_guava` migration (12 files) substitutes equivalent reference evidence per the priority redirect. The `_13_issues` PR3 work is tracked as a follow-up PR.
 - **`isolation/`** has zero `.sql` files; its scenario files use a different
   format and the metadata-header convention does not apply.
 - **`~/cubrid-testtools`** is the upstream runner repo and is not modified

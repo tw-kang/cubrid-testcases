@@ -20,6 +20,7 @@ python3 tool/lint_sql_metadata.py sql/_36_guava
 
 # Diff-mode: lint only .sql added or modified since a git ref
 python3 tool/lint_sql_metadata.py --migrated-since origin/develop
+# Note: --migrated-since is mutually exclusive with positional <paths>; passing both exits 2.
 
 # Strict mode: warnings (SQL-META101, SQL-META102) become errors
 python3 tool/lint_sql_metadata.py --strict sql/_36_guava
@@ -46,14 +47,16 @@ python3 tool/lint_sql_metadata.py --version
 
 | Code           | Severity | Meaning                                                    |
 |----------------|----------|------------------------------------------------------------|
-| `SQL-META001`  | error    | missing required key (`@issue`, `@description`, `@expected`) |
+| `SQL-META001`  | error    | header missing or required key absent (`@issue`, `@description`, `@expected`); file starts with `--+` or `--@directive` |
 | `SQL-META002`  | error    | enum violation (`@expected`, `@type`)                       |
 | `SQL-META003`  | error    | `@issue` does not match `CBRD-<digits>(,CBRD-<digits>)*` or `none` |
 | `SQL-META004`  | error    | grammar violation in `-- @key: value` line, or duplicate key |
 | `SQL-META005`  | error    | header must start at file line 1, before any `--+` runner directive |
-| `SQL-META006`  | error    | `@answer_variants` references a non-existent answer file    |
+| `SQL-META006`  | error    | `@answer_variants` token invalid (must match `[A-Za-z0-9_]+`) or references a non-existent answer file |
 | `SQL-META007`  | error    | UTF-8 BOM at file start                                     |
 | `SQL-META008`  | error    | metadata block continuation line (values must be single-line) |
+| `SQL-META009`  | error    | file-system guard: symlink, non-regular file, or file > 1 MiB |
+| `SQL-META010`  | error    | file empty or BOM-only (no usable content) |
 | `SQL-META101`  | warning  | unknown metadata key (promoted to error under `--strict`)   |
 | `SQL-META102`  | warning  | `@description` shorter than 20 chars (promoted under `--strict`) |
 

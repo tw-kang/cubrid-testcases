@@ -1,5 +1,5 @@
 -- @issue: CBRD-25708
--- @description: verifies partition pruning for function-expression partition keys — additional scenarios beyond basic comparisons
+-- @description: verifies partition pruning for function-expression partition keys with arithmetic (+/-) and abs() in WHERE
 -- @expected: normal
 -- @type: feature
 -- @category: _36_guava/partition_table

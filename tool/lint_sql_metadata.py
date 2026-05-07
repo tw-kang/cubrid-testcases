@@ -36,6 +36,8 @@ INLINE_DIRECTIVE = re.compile(r"^--@\w+")
 RUNNER_DIRECTIVE = re.compile(r"^--\+ ?")
 ISSUE_FORMAT = re.compile(r"^(CBRD-\d+)(,CBRD-\d+)*$|^none$")
 BOM = b"\xef\xbb\xbf"
+MAX_FILE_BYTES = 1 << 20  # 1 MiB; SQL testcases are small (largest in corpus is ~50 KB)
+VARIANT_TOKEN = re.compile(r"^[A-Za-z0-9_]+$")
 
 
 @dataclass(frozen=True)
@@ -63,17 +65,35 @@ class Header:
     key_lines: dict[str, int] = field(default_factory=dict)
     block_end_line: int = 0
     diagnostics: list[Diagnostic] = field(default_factory=list)
-    parsed_ok: bool = False
 
 
 def _read_bytes(path: Path) -> bytes:
     with open(path, "rb") as f:
-        return f.read()
+        return f.read(MAX_FILE_BYTES + 1)
 
 
 def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Header:
     h = Header(path=str(path))
+    if path.is_symlink():
+        h.diagnostics.append(
+            Diagnostic(str(path), 1, 1, "SQL-META009",
+                       f"path is a symlink; refusing to follow: {path}")
+        )
+        return h
+    if not path.is_file():
+        h.diagnostics.append(
+            Diagnostic(str(path), 1, 1, "SQL-META009",
+                       f"path is not a regular file: {path}")
+        )
+        return h
     raw = _read_bytes(path)
+
+    if len(raw) > MAX_FILE_BYTES:
+        h.diagnostics.append(
+            Diagnostic(str(path), 1, 1, "SQL-META009",
+                       f"file exceeds {MAX_FILE_BYTES} bytes; refusing to lint")
+        )
+        return h
 
     if raw.startswith(BOM):
         h.diagnostics.append(
@@ -84,6 +104,13 @@ def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Heade
 
     text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
+
+    if not text.strip():
+        h.diagnostics.append(
+            Diagnostic(h.path, 1, 1, "SQL-META010",
+                       "file empty; metadata header required")
+        )
+        return h
 
     idx = 0
     if auto_strip_leading_blank:
@@ -99,8 +126,8 @@ def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Heade
 
     if idx >= len(lines):
         h.diagnostics.append(
-            Diagnostic(h.path, 1, 1, "SQL-META001",
-                       "missing required metadata header (file empty)")
+            Diagnostic(h.path, 1, 1, "SQL-META010",
+                       "file empty; metadata header required")
         )
         return h
 
@@ -125,10 +152,20 @@ def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Heade
         )
         return h
 
-    block_start = idx
     while idx < len(lines):
         line = lines[idx]
         if line.strip() == "":
+            break
+        if RUNNER_DIRECTIVE.match(line):
+            h.diagnostics.append(
+                Diagnostic(h.path, idx + 1, 1, "SQL-META005",
+                           "metadata block must precede '--+' runner directives; "
+                           "separate the block with a blank line")
+            )
+            break
+        if INLINE_DIRECTIVE.match(line):
+            # Inline directives like --@queryplan terminate the metadata block (treated
+            # like a blank line). They never trigger SQL-META004 grammar diagnostics.
             break
         m = META_LINE.match(line)
         if m:
@@ -148,8 +185,8 @@ def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Heade
             h.diagnostics.append(
                 Diagnostic(h.path, idx + 1, 1, "SQL-META004",
                            "metadata grammar violation: expected exactly "
-                           "'-- @<key>: <value>' (lowercase key, single space "
-                           "after '--', single space after ':')")
+                           "'-- @<key>: <value>' (lowercase key, non-empty value, "
+                           "single space after '--', single space after ':')")
             )
             idx += 1
             continue
@@ -162,7 +199,6 @@ def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Heade
         idx += 1
 
     h.block_end_line = idx
-    h.parsed_ok = block_start == 0 if not auto_strip_leading_blank else True
 
     while idx < len(lines):
         line = lines[idx]
@@ -180,12 +216,18 @@ def parse_header(path: Path, *, auto_strip_leading_blank: bool = False) -> Heade
     return h
 
 
-def validate(header: Header, repo_root: Path | None = None) -> list[Diagnostic]:
+def validate(header: Header) -> list[Diagnostic]:
     diags: list[Diagnostic] = list(header.diagnostics)
 
     if any(d.code == "SQL-META005" and "leading blank" in d.message for d in diags):
         return diags
-    if any(d.code == "SQL-META001" for d in diags):
+    if any(d.code in ("SQL-META009", "SQL-META010") for d in diags):
+        return diags
+    # A bare missing-header SQL-META001 from parse_header (e.g. "starts with
+    # inline directive", "no @key found at line 1") also short-circuits — the
+    # missing-key follow-ups would be redundant noise.
+    if any(d.code == "SQL-META001" and d.line == 1 and "metadata header" in d.message
+           for d in diags):
         return diags
 
     for k in REQUIRED_KEYS:
@@ -251,6 +293,15 @@ def validate(header: Header, repo_root: Path | None = None) -> list[Diagnostic]:
             answers_dir = cases_dir.parent / "answers"
             base = sql_path.stem
             for variant in variants:
+                if not VARIANT_TOKEN.match(variant):
+                    diags.append(
+                        Diagnostic(header.path,
+                                   header.key_lines["answer_variants"], 1,
+                                   "SQL-META006",
+                                   f"invalid variant token '{variant}' "
+                                   "(must match [A-Za-z0-9_]+)")
+                    )
+                    continue
                 expected = answers_dir / f"{base}.answer_{variant}"
                 if not expected.exists():
                     diags.append(
@@ -278,6 +329,9 @@ def _iter_sql_files(targets: list[str]) -> list[Path]:
 
 
 def _diff_sql_files(ref: str) -> list[Path]:
+    if ref.startswith("-"):
+        print(f"error: ref must not start with '-': {ref!r}", file=sys.stderr)
+        sys.exit(2)
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", "--diff-filter=AM",
@@ -321,13 +375,15 @@ def main(argv: list[str] | None = None) -> int:
               f"(sql_guide.md@{SQL_GUIDE_SHA})")
         return 0
 
+    if args.migrated_since and args.paths:
+        parser.error("--migrated-since is mutually exclusive with positional <paths>")
+
     if args.migrated_since:
         files = _diff_sql_files(args.migrated_since)
     elif args.paths:
         files = _iter_sql_files(args.paths)
     else:
         parser.error("no paths provided (or use --migrated-since REF)")
-        return 2
 
     if not files:
         if args.migrated_since:
@@ -337,11 +393,10 @@ def main(argv: list[str] | None = None) -> int:
 
     error_count = 0
     warning_count = 0
-    repo_root = Path.cwd()
 
     for f in files:
         header = parse_header(f, auto_strip_leading_blank=args.auto_strip_leading_blank)
-        diags = validate(header, repo_root=repo_root)
+        diags = validate(header)
         for d in diags:
             severity = d.severity
             if args.strict and severity == "warning":
